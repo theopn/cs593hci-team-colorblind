@@ -10,8 +10,9 @@
     :root {
       color-scheme: dark;
       --floor: rgb(196, 180, 145);
-      --hole: rgb(66, 210, 34);
-      --mole: rgb(188, 56, 42);
+      --hole: rgb(85, 72, 63);
+      --mole: rgb(178, 83, 72);
+      --face: rgb(20, 20, 20);
       --ink: #f4f7fb;
       --muted: #9da8b7;
       --panel: #1d222b;
@@ -90,6 +91,7 @@
     }
 
     .hole {
+      position: relative;
       width: 100%;
       aspect-ratio: 1.6 / 1;
       padding: 0;
@@ -101,6 +103,7 @@
       cursor: pointer;
       transition: none;
       -webkit-tap-highlight-color: transparent;
+      overflow: hidden;
     }
 
     .hole.active { background: var(--mole); }
@@ -112,6 +115,56 @@
     .hole:focus-visible {
       outline: 3px solid rgba(255, 255, 255, .8);
       outline-offset: 6px;
+    }
+
+    .animations-on .hole {
+      transform-origin: center bottom;
+      transition: transform 320ms cubic-bezier(.2, .8, .25, 1), border-radius 320ms cubic-bezier(.2, .8, .25, 1);
+    }
+
+    .animations-on .hole.active {
+      z-index: 2;
+      transform: scaleY(1.55);
+      border-radius: 46% 46% 42% 42% / 14% 14% 18% 18%;
+    }
+
+    .animations-on .hole.active .face {
+      transform: scaleY(.645);
+      transition: transform 320ms cubic-bezier(.2, .8, .25, 1);
+    }
+
+    .face {
+      position: absolute;
+      inset: 13% 18% 12%;
+      color: var(--face);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .faces-on .face { opacity: 1; }
+
+    .faces-on.faces-target-only .hole:not(.active) .face { opacity: 0; }
+
+    .face-eye {
+      position: absolute;
+      top: 10%;
+      width: 13%;
+      height: 28%;
+      border-radius: 50%;
+      background: currentColor;
+    }
+
+    .face-eye.left { left: 18%; }
+    .face-eye.right { right: 18%; }
+
+    .face-smile {
+      position: absolute;
+      left: 13%;
+      right: 13%;
+      bottom: 8%;
+      height: 48%;
+      border-bottom: clamp(4px, .55vw, 7px) solid currentColor;
+      border-radius: 0 0 50% 50%;
     }
 
     .status-bar {
@@ -232,6 +285,31 @@
     .channel input { height: 18px; }
     .channel output { text-align: right; font-size: .8rem; }
 
+    .switch-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      color: #dfe5ed;
+      cursor: pointer;
+    }
+
+    .switch-row input {
+      width: 44px;
+      height: 24px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .switch-row + .switch-row { margin-top: 12px; }
+
+    .switch-warning {
+      margin: 8px 0 0;
+      color: #f1b86a;
+      font-size: .78rem;
+      line-height: 1.35;
+    }
+
     .button-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
@@ -338,6 +416,28 @@
         </div>
       </fieldset>
 
+      <fieldset>
+        <legend>Face</legend>
+        <label class="switch-row" for="faceEnabled">
+          <span>Show faces</span>
+          <input id="faceEnabled" type="checkbox">
+        </label>
+        <label class="switch-row" for="faceTargetOnly">
+          <span>Face only on active mole</span>
+          <input id="faceTargetOnly" type="checkbox">
+        </label>
+        <p class="switch-warning">Mole-only mode adds a non-color shape cue. Keep it off for color-only testing.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Motion</legend>
+        <label class="switch-row" for="animationEnabled">
+          <span>Pop-up animation</span>
+          <input id="animationEnabled" type="checkbox">
+        </label>
+        <p class="switch-warning">Animation adds motion and shape cues. Keep it off for color-only measurement.</p>
+      </fieldset>
+
       <div id="colorControls"></div>
 
       <div class="button-grid">
@@ -356,8 +456,12 @@
 
       const DEFAULTS = {
         floor: [196, 180, 145],
-        hole: [66, 210, 34],
-        mole: [188, 56, 42],
+        hole: [85, 72, 63],
+        mole: [178, 83, 72],
+        face: [20, 20, 20],
+        faceEnabled: false,
+        faceTargetOnly: false,
+        animationEnabled: false,
         interval: 1.2,
         duration: 0.85
       };
@@ -400,6 +504,10 @@
             floor: validColor(saved.floor, DEFAULTS.floor),
             hole: validColor(saved.hole, DEFAULTS.hole),
             mole: validColor(saved.mole, DEFAULTS.mole),
+            face: validColor(saved.face, DEFAULTS.face),
+            faceEnabled: saved.faceEnabled === true,
+            faceTargetOnly: saved.faceTargetOnly === true,
+            animationEnabled: saved.animationEnabled === true,
             interval: Math.max(.2, Math.min(5, Number(saved.interval) || DEFAULTS.interval)),
             duration: Math.max(.1, Math.min(5, Number(saved.duration) || DEFAULTS.duration))
           };
@@ -419,8 +527,12 @@
         document.documentElement.style.setProperty("--floor", rgb(settings.floor));
         document.documentElement.style.setProperty("--hole", rgb(settings.hole));
         document.documentElement.style.setProperty("--mole", rgb(settings.mole));
+        document.documentElement.style.setProperty("--face", rgb(settings.face));
         shell.style.color = readableText(settings.floor);
-        ["floor", "hole", "mole"].forEach(name => {
+        app.classList.toggle("faces-on", settings.faceEnabled);
+        app.classList.toggle("faces-target-only", settings.faceTargetOnly);
+        app.classList.toggle("animations-on", settings.animationEnabled);
+        ["floor", "hole", "mole", "face"].forEach(name => {
           const swatch = document.querySelector(`[data-swatch="${name}"]`);
           if (swatch) swatch.style.setProperty("--swatch", rgb(settings[name]));
         });
@@ -428,7 +540,7 @@
 
       function createColorControls() {
         const host = $("#colorControls");
-        const labels = { floor: "Floor color", hole: "Hole color", mole: "Mole color" };
+        const labels = { floor: "Floor color", hole: "Hole color", mole: "Mole color", face: "Face color" };
         const channels = ["R", "G", "B"];
         host.innerHTML = Object.keys(labels).map(name => `
           <fieldset>
@@ -456,6 +568,20 @@
             input.nextElementSibling.value = input.value;
             applyColors();
           });
+        });
+      }
+
+      function createFaces() {
+        holes.forEach(hole => {
+          const face = document.createElement("span");
+          face.className = "face";
+          face.setAttribute("aria-hidden", "true");
+          face.innerHTML = `
+            <span class="face-eye left"></span>
+            <span class="face-eye right"></span>
+            <span class="face-smile"></span>
+          `;
+          hole.appendChild(face);
         });
       }
 
@@ -565,6 +691,24 @@
           settings.duration = Number(duration.value);
           $("#durationOut").value = `${settings.duration.toFixed(2)}s`;
         });
+        const faceEnabled = $("#faceEnabled");
+        const faceTargetOnly = $("#faceTargetOnly");
+        const animationEnabled = $("#animationEnabled");
+        faceEnabled.checked = settings.faceEnabled;
+        faceTargetOnly.checked = settings.faceTargetOnly;
+        animationEnabled.checked = settings.animationEnabled;
+        faceEnabled.addEventListener("change", () => {
+          settings.faceEnabled = faceEnabled.checked;
+          applyColors();
+        });
+        faceTargetOnly.addEventListener("change", () => {
+          settings.faceTargetOnly = faceTargetOnly.checked;
+          applyColors();
+        });
+        animationEnabled.addEventListener("change", () => {
+          settings.animationEnabled = animationEnabled.checked;
+          applyColors();
+        });
 
         holes.forEach((hole, index) => hole.addEventListener("click", () => handleHoleClick(index)));
         $("#pause").addEventListener("click", togglePause);
@@ -591,6 +735,7 @@
         });
       }
 
+      createFaces();
       createColorControls();
       applyColors();
       bindControls();
@@ -600,3 +745,4 @@
   </script>
 </body>
 </html>
+
